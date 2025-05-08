@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card shadow mx-auto" style="max-width: 500px;">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Create Event</h4>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-primary w-100">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

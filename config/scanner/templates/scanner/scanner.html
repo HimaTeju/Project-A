@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+  <!-- Notification Container (top right) -->
+  <div id="scan-result" class="position-fixed top-0 end-0 p-3" style="z-index: 11; width: 350px; margin-top: 20px;"></div>
+
+  <h2 class="text-center" style="color: var(--text-primary);">Scan Attendance - {{ event.name }}</h2>
+  <div class="row justify-content-center">
+    <!-- Scanner Column -->
+    <div class="col-md-6">
+      <video id="scanner-video" width="100%" autoplay class="border rounded shadow" style="border-color: var(--accent-primary) !important;"></video>
+      <button id="stop-scan" class="btn mt-3 w-100" style="background-color: red; color: var(--text-primary); height: var(--button-height);">Stop Scanner</button>
+    </div>
+    
+    <!-- Attendees Column -->
+    <div class="col-md-4">
+      <div class="card shadow" style="background-color: var(--bg-secondary);">
+        <div class="card-header" style="background-color: var(--bg-secondary); color: var(--text-primary);">
+          <h5 class="mb-0">Attendees ({{ attendees|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto; background-color: var(--bg-secondary);">
+            {% for attendee in attendees %}
+              <li class="list-group-item" style="background-color: var(--bg-secondary); color: var(--text-secondary); border-color: var(--bg-primary);">
+                {{ attendee.student_id }} <small style="color: var(--text-tertiary);">{{ attendee.timestamp|time }}</small>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Entry Form -->
+  <div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+      <div class="card shadow" style="background-color: var(--bg-secondary);">
+        <div class="card-header" style="background-color: var(--bg-secondary); color: var(--accent-primary);">
+          <h5 class="mb-0">Manual Entry</h5>
+        </div>
+        <div class="card-body">
+          <form id="manual-form" method="POST" action="{% url 'process_scan' event.id %}">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="manual_id" class="form-label" style="color: var(--text-secondary);">Student ID:</label>
+              <input type="text" class="form-control" id="manual_id" name="student_id" required style="background-color: var(--bg-primary); color: var(--text-primary); border-color: var(--bg-primary);">
+            </div>
+            <button type="submit" class="btn w-100" style="background-color: var(--accent-primary); color: var(--text-primary); height: var(--button-height);">Submit</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Load Instascan from CDN (modern approach) -->
+<script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+<script>
+  // Initialize scanner
+  const scanner = new Instascan.Scanner({ video: document.getElementById('scanner-video') });
+  
+  scanner.addListener('scan', function(content) {
+    fetch("{% url 'process_scan' event.id %}", {
+      method: "POST",
+      headers: { 
+        "X-CSRFToken": "{{ csrf_token }}",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ student_id: content })
+    })
+    .then(response => response.json())
+    .then(data => {
+      const resultEl = document.getElementById('scan-result');
+      resultEl.innerHTML = `
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" style="background-color: ${data.success ? 'green' : '#d32f2f'}; color: var(--text-primary); border-radius: var(--border-radius);">
+          <div class="toast-header" style="background-color: ${data.success ? 'green' : '#d32f2f'}; color: var(--text-primary); border-bottom-color: rgba(255,255,255,0.1);">
+            <strong class="me-auto">${data.success ? 'Success' : 'Error'}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+          <div class="toast-body">
+            ${data.message}
+          </div>
+        </div>
+      `;
+      
+      // Auto-hide after 3 seconds
+      setTimeout(() => {
+        const toast = resultEl.querySelector('.toast');
+        if (toast) {
+          toast.classList.remove('show');
+          setTimeout(() => toast.remove(), 300);
+        }
+      }, 3000);
+      
+      if (data.success) {
+        setTimeout(() => location.reload(), 1000); // Refresh to show new attendee after a brief delay
+      }
+    });
+  });
+
+  // Start scanner
+  Instascan.Camera.getCameras()
+    .then(cameras => {
+      if (cameras.length > 0) {
+        scanner.start(cameras[0]);
+      } else {
+        alert('No cameras found');
+      }
+    });
+
+  // Stop scanner button
+  document.getElementById('stop-scan').addEventListener('click', () => {
+    scanner.stop();
+    window.location.href = "{% url 'attendance_list' event.id %}";
+  });
+</script>
+
+<style>
+  :root {
+    --bg-primary: #121212;
+    --bg-secondary: #1E1E1E;
+    --accent-primary: #7b1fa2; /* purple[700] */
+    --accent-focus: #ba68c8; /* purple[400] */
+    --accent-gradient-start: #7b1fa2; /* purple[700] */
+    --accent-gradient-end: #2196f3; /* blue[500] */
+    --text-primary: #ffffff;
+    --text-secondary: #e0e0e0; /* grey[300] */
+    --text-tertiary: #757575; /* grey[600] */
+    --border-radius: 12px;
+    --button-height: 56px;
+  }
+  
+  #scanner-video {
+    max-height: 60vh;
+    background: var(--bg-primary);
+  }
+  
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+  
+  .btn-close {
+    filter: invert(1);
+  }
+  
+  .form-control:focus {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--accent-focus);
+    box-shadow: 0 0 0 0.25rem rgba(123, 31, 162, 0.25);
+  }
+  
+  .toast {
+    transition: opacity 0.3s ease;
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.3);
+  }
+</style>
+{% endblock %}

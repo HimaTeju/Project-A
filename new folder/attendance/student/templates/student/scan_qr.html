@@ -1,0 +1,181 @@
+{% extends 'student/base.html' %} 
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center text-info">Scan Your Attendance QR Code</h2>
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <video id="attendance-video" width="100%" autoplay class="border border-info rounded shadow"></video>
+      <canvas id="attendance-canvas" class="d-none"></canvas>
+      <button id="finish-btn" class="btn btn-success mt-3">Finish</button>
+    </div>
+    <div class="col-md-4">
+      <h5 class="text-center text-success">Attendees</h5>
+      <ul id="attendee-list" class="list-group mt-3"></ul>
+    </div>
+  </div>
+  
+  <!-- Form for manual QR code entry -->
+  <div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+      <form method="POST" action="." class="bg-light p-4 rounded shadow">
+        {% csrf_token %}
+        <h5 class="text-center">Manual Entry</h5>
+        <div class="form-group">
+          <label for="manual_qr">Enter QR Code Manually:</label>
+          <input type="text" id="manual_qr" name="manual_qr" class="form-control" placeholder="e.g., 23CA011" required>
+        </div>
+        <button type="submit" id="submitButton" class="btn btn-primary mt-2">Submit</button>
+      </form>
+    </div>
+  </div>
+  
+  <div id="result" class="text-center mt-3"></div>
+</div>
+
+<style>
+  body {
+    background-color: #f8f9fa;
+  }
+  h2 {
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+  }
+  .border-info {
+    border-color: #17a2b8 !important;
+  }
+  .btn-success {
+    background-color: #28a745;
+    border: none;
+  }
+  .btn-success:hover {
+    background-color: #218838;
+  }
+  .btn-primary {
+    background-color: #007bff;
+    border: none;
+  }
+  .btn-primary:hover {
+    background-color: #0069d9;
+  }
+  #result {
+    font-size: 1.2em;
+    padding: 10px;
+    border-radius: 5px;
+  }
+  .text-success {
+    color: #28a745;
+  }
+  .text-danger {
+    color: #dc3545;
+  }
+  /* New styles for attendees list */
+  #attendee-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+</style>
+
+<script>
+  // Add an event listener to the finish button
+document.getElementById("finish-btn").addEventListener("click", function() {
+  // Collect all attendee names
+  const attendees = Array.from(attendeeList.children).map(item => item.textContent);
+  
+  // Send the attendee list to the server
+  fetch("{% url 'submit_attendance' %}", {
+      method: "POST",
+      headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+      },
+      body: JSON.stringify({ attendees: attendees }),
+  })
+  .then(response => response.json())
+  .then(data => {
+      if (data.status === "success") {
+          result.innerHTML = `<p class="text-success">${data.message}</p>`;
+      } else {
+          result.innerHTML = `<p class="text-danger">${data.message}</p>`;
+      }
+  })
+  .catch(error => {
+      console.error("Error:", error);
+  });
+});
+
+  console.log("Hello from the Attendance QR scanner page!");
+  // Access the webcam stream
+  const video = document.getElementById("attendance-video");
+  const canvas = document.getElementById("attendance-canvas");
+  const result = document.getElementById("result");
+  const attendeeList = document.getElementById("attendee-list");
+
+  // Start the camera stream
+  navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+    video.srcObject = stream;
+    startFrameCapture();
+    console.log("Camera captured for attendance."); // Start capturing frames
+  });
+
+  // Capture and send frames to the server at regular intervals
+  function startFrameCapture() {
+    setInterval(() => {
+      const frame = captureFrame();
+      sendFrameToServer(frame);
+    }, 1000); // Send a frame every second
+  }
+
+  // Capture the current frame from the video
+  function captureFrame() {
+    const context = canvas.getContext("2d");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png");
+  }
+
+  // Send the frame to the server for QR code scanning
+  function sendFrameToServer(frame) {
+    console.log("Sending frame to server for attendance...");
+    console.log("Captured frame data (first 100 chars):", frame.slice(0, 100));
+    fetch("{% url 'scan_qr' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+      body: JSON.stringify({ image: frame }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log(data);
+        if (data.status === "success") {
+          result.innerHTML = `<p class="text-success">QR Code Data: ${data.qr_data}</p>`;
+          document.getElementById('manual_qr').value = data.qr_data;
+
+          // Add the student's name to the attendee list
+          const listItem = document.createElement("li");
+          listItem.className = "list-group-item";
+          listItem.textContent = data.student_name; // Assuming student_name is returned in the response
+          attendeeList.appendChild(listItem);
+
+          // Prevent the default form submission behavior if you're using a form
+          const submitButton = document.getElementById('submitButton');
+          submitButton.addEventListener('click', function (event) {
+            event.preventDefault(); // Prevent the page from reloading
+          });
+
+          // Automatically click the submit button
+          submitButton.click();
+        } else {
+          result.innerHTML = `<p class="text-danger">${data.message}</p>`;
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+      });
+  }
+</script>
+
+
+{% endblock %}

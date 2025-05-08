@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item active" aria-current="page" style="color: var(--text-secondary);">Events</li>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow" style="background-color: var(--bg-secondary);">
+    <div class="card-header" style="background-color: var(--accent-primary); color: var(--text-primary);">
+        <h4 class="mb-0">Events</h4>
+    </div>
+    <div class="card-body">
+        <a href="{% url 'event_create' %}" class="btn mb-3" style="background-color: var(--accent-primary); color: var(--text-primary); height: 40px;">+ New Event</a>
+        <div class="list-group">
+            {% for event in events %}
+            <a href="{% url 'scanner' event.id %}" class="list-group-item list-group-item-action" 
+               style="background-color: var(--bg-secondary); color: var(--text-secondary); border-color: var(--bg-primary);">
+                <h5 style="color: var(--text-primary);">{{ event.name }}</h5>
+                <small style="color: var(--text-tertiary);">{{ event.date }} • {{ event.is_multi_day|yesno:"Multi-day,Single-day" }}</small>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<style>
+    :root {
+        --bg-primary: #121212;
+        --bg-secondary: #1E1E1E;
+        --accent-primary: #7b1fa2; /* purple[700] */
+        --accent-focus: #ba68c8; /* purple[400] */
+        --accent-gradient-start: #7b1fa2; /* purple[700] */
+        --accent-gradient-end: #2196f3; /* blue[500] */
+        --text-primary: #ffffff;
+        --text-secondary: #e0e0e0; /* grey[300] */
+        --text-tertiary: #757575; /* grey[600] */
+        --border-radius: 12px;
+        --button-height: 40px;
+    }
+    .list-group-item:hover {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .btn:hover {
+        background-color: var(--accent-focus) !important;
+    }
+</style>
